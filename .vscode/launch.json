@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/temca_neural_qc/temca_neural_qc.py",
             "console": "integratedTerminal",
             "args": [
-                "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1/TEMCA2",
+                "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1/TEMCA6",
                 "0", "999999"]
         }
     ]
