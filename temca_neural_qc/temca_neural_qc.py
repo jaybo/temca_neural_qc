@@ -114,15 +114,29 @@ def main(args):
             filtered.append(d)
 
     # hmm... sort filtered?
+    true_pos = true_neg = false_pos = false_neg = 0
     for apath in filtered:
         predictions = score_montage(model, apath)
         if predictions:
             if predictions[[0]] > 0.5:
                 bad = 'BAD'
+                if 'DONOTUSE' in str(apath):
+                    true_pos += 1
+                else:
+                    false_pos += 1
             else:
                 bad = ''
+                if 'DONOTUSE' in str(apath):
+                    false_neg += 1
+                else:
+                    true_neg += 1
             print (apath, predictions, bad)
-
+    mess = f'''
+        TP: {true_pos}, FP: {false_pos}
+        FN: {false_neg}, TN: {true_neg}
+        accuracy: {(true_pos + true_neg)/ (true_pos + true_neg + false_pos + false_neg)}
+        '''
+    print (mess)
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
