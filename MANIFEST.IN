@@ -1,1 +1,1 @@
-temca_neural_qc/model.h5
+include temca_neural_qc/checkpoint.h5

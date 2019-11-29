@@ -27,7 +27,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score 
 from sklearn.metrics import classification_report 
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import layers, Model
 
 #import altair as alt
 import cv2
@@ -53,11 +53,11 @@ def print_statistics(model, X_test, y_test):
     print(classification_report(y_test, yhat_classes))
 
 all_types = [
+    'quality_col_m',
+    'quality_row_m',
+    'focus_col_m',
     'distance_row_m',
     'distance_col_m',
-    'focus_col_m',
-    'quality_row_m',
-    'quality_col_m',
     'std_dev_col_m',
 ]
 
@@ -82,17 +82,15 @@ def score_montage(model, apath):
             else:
                 images = np.dstack((images, imOut))
 
-        # Mean: 189.234, Standard Deviation: 63.003
-        mean = [218.22372088477263, 223.30157309013208, 228.93922391130704, 217.5915294109717, 224.14131994647954, 229.05184819132552, 88.18692224536498, 180.83324574751694, 159.5848402812183, 191.3358797255897, 202.52954515198394, 227.9932556393638, 182.53416718906402, 195.6766313542899, 227.76917859754843, 170.7720950072293, 163.36593670060563, 74.3868799901587]
-        std = [39.46509044784904, 34.029585026135265, 15.402089716812553, 38.52190594575598, 32.12519199811554, 14.974305274328076, 62.16665181575128, 68.3759404237673, 70.25388721225639, 20.507093695845384, 18.223561556005606, 13.896644559074637, 24.002289899046396, 20.67995380294041, 13.872942827694468, 64.94861555115632, 77.82811144222963, 63.73438910186099]
 
-        images = (images - mean) / std
-        predictions = model.predict(np.array([images],))
+        images = np.array([images,])
+        images = (images / 255) - 0.5
+        predictions = model.predict(images)
         return predictions
 
 def main(args):
     ''' main entry point '''
-    model = tf.keras.models.load_model('./temca_neural_qc/model.h5') 
+    model = tf.keras.models.load_model('checkpoint.h5') 
     
     root_dir = args.directory[0]
     start = int(args.start[0])
@@ -117,7 +115,7 @@ def main(args):
     true_pos = true_neg = false_pos = false_neg = 0
     for apath in filtered:
         predictions = score_montage(model, apath)
-        if predictions:
+        if predictions is not None:
             if predictions[[0]] > 0.5:
                 bad = 'BAD'
                 if 'DONOTUSE' in str(apath):
@@ -130,13 +128,17 @@ def main(args):
                     false_neg += 1
                 else:
                     true_neg += 1
-            print (apath, predictions, bad)
-    mess = f'''
-        TP: {true_pos}, FP: {false_pos}
-        FN: {false_neg}, TN: {true_neg}
-        accuracy: {(true_pos + true_neg)/ (true_pos + true_neg + false_pos + false_neg)}
-        '''
-    print (mess)
+            print ("{0:s}, {1:.2f}, {2:s}".format(str(apath), float(predictions[[0]]), bad))
+    
+    total = true_pos + true_neg + false_pos + false_neg
+    if total > 0:
+        mess = f'''
+            TP: {true_pos}, FP: {false_pos}
+            FN: {false_neg}, TN: {true_neg}
+            accuracy: {(true_pos + true_neg)/ (total)}
+            '''
+        print (mess)
+
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """

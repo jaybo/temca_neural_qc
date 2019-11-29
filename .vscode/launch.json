@@ -8,10 +8,11 @@
             "name": "temca_neural_qc",
             "type": "python",
             "request": "launch",
+            "cwd": "${workspaceFolder}/temca_neural_qc/",
             "program": "${workspaceFolder}/temca_neural_qc/temca_neural_qc.py",
             "console": "integratedTerminal",
             "args": [
-                "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1/TEMCA2",
+                "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1",
                 "0", "999999"]
         }
     ]

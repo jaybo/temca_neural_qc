@@ -1,0 +1,5 @@
+tensorflow-gpu
+numpy>1.16.0
+opencv_python
+h5py==
+scikit_learn
