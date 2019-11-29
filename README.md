@@ -30,10 +30,11 @@ Neural net to analyze TEMCA QC images
 
 ## Typical output
 
-path, confidence, 'BAD' <if confidence > 0.5>
+path, confidence, 'BAD' if confidence > 0.5
+(we're detecting bad montages, so values close to 1.0 are bad to the bone)
 
     ...
-    C:\Users\jaybo\Google Drive\data\V1DD_409828_L1\TEMCA2\409828_L1_AI027_TEMCA2_02\140456 0.10
-    C:\Users\jaybo\Google Drive\data\V1DD_409828_L1\TEMCA2\409828_L1_AI027_TEMCA2_02\140457 0.62 BAD
-    C:\Users\jaybo\Google Drive\data\V1DD_409828_L1\TEMCA2\409828_L1_AI027_TEMCA2_02\140458 0.00
+    C:\Users\jaybo\Google Drive\data\V1DD_409828_L1\TEMCA2\409828_L1_AI027_TEMCA2_02\140456, 0.10,
+    C:\Users\jaybo\Google Drive\data\V1DD_409828_L1\TEMCA2\409828_L1_AI027_TEMCA2_02\140457, 0.62, BAD
+    C:\Users\jaybo\Google Drive\data\V1DD_409828_L1\TEMCA2\409828_L1_AI027_TEMCA2_02\140458, 0.00,
     ...
