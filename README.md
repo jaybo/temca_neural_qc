@@ -10,23 +10,19 @@ Neural net to analyze and rate TEMCA QC images.
     conda create -n qc
     activate qc
 
-### Locally clone the package
+### Install the package
 
-    git clone https://github.com/jaybo/temca_neural_qc.git mydir
-
-    
-### Install the package in developer mode
-
-    cd mydir
-    pip install -e .
+    pip install git+https://github.com/jaybo/temca_neural_qc.git
 
 ## Usage
 
-    python temca_neural_qc.py <root directory> <start barcode> <optional end barcode>
+The installer creats an executable file `temca_neural_qc.exe` which can be run directly from the command line without invoking Python.  All directories are recursively searched from the root directory.  If subdirectories follow the `DONOTUSE` naming convention, then true/false positive/negative statistics are printed at the conclusion of the run.
+
+    temca_neural_qc <root directory> <start barcode> <optional end barcode>
 
 ### example
 
-    python temca_neural_qc.py "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1" 0 999999
+    temca_neural_qc "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1" 0 999999
 
 ## Typical output
 

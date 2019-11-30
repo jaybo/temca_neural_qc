@@ -88,8 +88,18 @@ def score_montage(model, apath):
         predictions = model.predict(images)
         return predictions
 
-def main(args):
+
+def main():
     ''' main entry point '''
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("directory", nargs=1, help='root directory')
+    parser.add_argument("start", nargs=1, help="starting aperture")
+    parser.add_argument("end", nargs='?', default=-1, help="optional ending aperture")
+    
+    args = parser.parse_args()
+    
     model = tf.keras.models.load_model('checkpoint.h5') 
     
     root_dir = args.directory[0]
@@ -142,11 +152,4 @@ def main(args):
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("directory", nargs=1, help='root directory')
-    parser.add_argument("start", nargs=1, help="starting aperture")
-    parser.add_argument("end", nargs='?', default=-1, help="optional ending aperture")
-    
-    args = parser.parse_args()
-    main(args)
+    main()
