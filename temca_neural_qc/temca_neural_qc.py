@@ -100,7 +100,9 @@ def main():
     
     args = parser.parse_args()
     
-    model = tf.keras.models.load_model('checkpoint.h5') 
+    # find out the directory if running from a script
+    dn = os.path.dirname(os.path.realpath(__file__))
+    model = tf.keras.models.load_model(os.path.join(dn, 'checkpoint.h5')) 
     
     root_dir = args.directory[0]
     start = int(args.start[0])
