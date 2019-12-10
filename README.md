@@ -7,7 +7,7 @@ Neural net to analyze and rate TEMCA QC images.
 
 ### Create a virtual or conda environment
 
-    conda create -n qc python pip
+    conda create -n qc python=3.6 pip
     activate qc
 
 ### Install the package
