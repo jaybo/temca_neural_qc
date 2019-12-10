@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='temca-neural-qc',
-      version='0.2',
+      version='0.3',
       description='Scores the QC images from TEMCA',
       url='https://github.com/jaybo/temca_neural_qc',
       author='Jay Borseth',
@@ -17,7 +17,7 @@ setup(name='temca-neural-qc',
       },
       install_requires=[
           'opencv-python',
-          'tensorflow-gpu',
+          'tensorflow',
           'scikit-learn',
           'h5py',
           'numpy>1.16'

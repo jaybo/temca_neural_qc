@@ -121,7 +121,9 @@ def main():
     for d in all_dirs:
         # now filter only the desired directories
         if d.name >= start_s and d.name <= end_s:
-            filtered.append(d)
+            # but not reference montages
+            if not 'reference' in d.name:
+                filtered.append(d)
 
     # hmm... sort filtered?
     true_pos = true_neg = false_pos = false_neg = 0
