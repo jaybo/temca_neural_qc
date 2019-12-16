@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "temca_neural_qc",
             "type": "python",
@@ -13,6 +14,17 @@
             "console": "integratedTerminal",
             "args": [
                 "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1",
+                "0", "999999"]
+        },
+        {
+            "name": "train",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/temca_neural_qc/",
+            "program": "${workspaceFolder}/temca_neural_qc/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "C:/Users/jaybo/Google Drive/data/jay7",
                 "0", "999999"]
         }
     ]
