@@ -52,73 +52,64 @@ class TemcaNeuralTrainer:
         self.file_list_name = './file_list.json'
         self.all_name = './all.hd5'
 
-    def write_hdf5_record(self, metadata, data, hdf5_file, do_not_use=False):
+    def write_hdf5_record(self, setname, metadata, data, hdf5_f, do_not_use=False):
         ''' each aperture becomes two datasets, data and metadata. 
         Also, a index dataset contains an attribute where the key is the setname 
         and value is True if do_not_use.
         Returns the key used to store the record '''
 
-        setname = None
         metadata["do_not_use"] = do_not_use
-        with h5py.File(hdf5_file, 'a') as f:
-            try:
-                setname = metadata['specimen_id'] + '_' + \
-                    metadata['media_id'] + '_' + metadata['grid']
-            except KeyError as ex:
-                print(ex, setname)
-                setname = metadata['specimen_id'] + '_' + metadata['grid']
 
-            # add data and metadata
-            try:
-                f.create_dataset(setname, data.shape, dtype=np.float32, data=data)
-                f.create_dataset(setname + '_meta', data=json.dumps(metadata))
-            except OSError as ex:
-                # already exists, recreate it
-                print(ex, setname)
-                del f[setname]
-                del f[setname + '_meta']
-                f.create_dataset(setname, data.shape, dtype=np.float32, data=data)
-                f.create_dataset(setname + '_meta', data=json.dumps(metadata))
+        # add data and metadata
+        try:
+            hdf5_f.create_dataset(setname, data.shape, dtype=np.float32, data=data)
+            hdf5_f.create_dataset(setname + '_meta', data=json.dumps(metadata))
+        except OSError as ex:
+            # already exists, recreate it
+            print(ex, setname)
+            del hdf5_f[setname]
+            del hdf5_f[setname + '_meta']
+            hdf5_f.create_dataset(setname, data.shape, dtype=np.float32, data=data)
+            hdf5_f.create_dataset(setname + '_meta', data=json.dumps(metadata))
 
-            # add to the index
-            try:
-                index = f['index']
-            except KeyError as ex:
-                index = f.create_dataset('index', dtype=np.bool)
-            try:
-                index.attrs[setname] = do_not_use
-            except Exception as ex:
-                print(ex)
+        # add to the index
+        try:
+            index = hdf5_f['index']
+        except KeyError as ex:
+            index = hdf5_f.create_dataset('index', dtype=np.bool)
+        try:
+            index.attrs[setname] = do_not_use
+        except Exception as ex:
+            print(ex)
 
-        return setname
 
-    def read_hdf5_record(self, setname, hdf5_file):
+    def read_hdf5_record(self, setname, hdf5_f):
         ''' Given a dataset name, return (meta, data, do_not_use)'''
-        with h5py.File(hdf5_file, 'r') as f:
-            try:
-                data = f[setname][:,:,:]
-                meta = json.loads(f[setname + '_meta'][()])
-                do_not_use = f['index'].attrs[setname]
-                return meta, data, do_not_use
-            except KeyError as ex:
-                # already exists, recreate it
-                print (ex, setname)
+        try:
+            data = hdf5_f[setname][:,:,:]
+            meta = json.loads(hdf5_f[setname + '_meta'][()])
+            do_not_use = hdf5_f['index'].attrs[setname]
+            return meta, data, do_not_use
+        except KeyError as ex:
+            # already exists, recreate it
+            print (ex, setname)
 
-    def read_hdf5_index(self, hdf5_file):
+
+    def read_hdf5_index(self, hdf5_f):
         ''' Returns a {} where the key is each dataset name, 
         and the value is do_not_use.
         '''
         index = {}
-        with h5py.File(hdf5_file, 'r') as f:
-            try:
-                for k in f['index'].attrs.keys():
-                    v = f['index'].attrs[k]
-                    print (k, v)
-                    index[k] = v
-                return index
-            except KeyError as ex:
-                # already exists, recreate it
-                print (ex)
+
+        try:
+            for k in hdf5_f['index'].attrs.keys():
+                v = hdf5_f['index'].attrs[k]
+                #print (k, v)
+                index[k] = v
+            return index
+        except KeyError as ex:
+            # already exists, recreate it
+            print (ex)
 
 
     def parse_metadata(self, meta_file):
@@ -160,8 +151,7 @@ class TemcaNeuralTrainer:
             focus[row][col] = tile["focus_score"]
             # early metadata didn't have stddev
             if "std_dev" in tile:
-                std_dev = tile["std_dev"]
-                std_dev[row][col] = std_dev
+                std_dev[row][col] =  tile["std_dev"]
             if 'matcher' in tile:
                 mt = tile['matcher'][0]  # matcher top
                 ms = tile['matcher'][1]  # matcher side
@@ -182,7 +172,7 @@ class TemcaNeuralTrainer:
         # finally, stack all planes together
         # planes = 12:    1      1     1       1          6                  2
         all_planes = np.dstack((mask, mean, focus, std_dev, im_dist_to_ideal, im_match_quality))
-        print (all_planes.shape)
+        #print (all_planes.shape)
         return (metadata, all_planes)
 
 
@@ -193,10 +183,11 @@ class TemcaNeuralTrainer:
         search_path = os.path.join(rootdir, r"**")
         search_path = os.path.join(search_path, r"_metadata*.json")
         files = glob.glob(search_path, recursive=True)
-
+        files = sorted(files)
         print(len(files))
 
-        # filtered = [f for f in files if "_metadata" in f]
+        # remove reference montages
+        files = [f for f in files if not "_reference" in f]
 
         # only inclue apertures in the range start to end
         filtered = []
@@ -223,6 +214,7 @@ class TemcaNeuralTrainer:
         all_files = []
         with open(self.file_list_name, 'r') as f:
             all_files = json.load(f)
+        all_files = sorted(all_files)
         return all_files
 
 
@@ -481,23 +473,35 @@ def main():
         files = tnt.create_filelist(directory, args.start, args.end)
 
     index = {}
-    for meta_file_name in files:
-        meta, data = tnt.parse_metadata(meta_file_name)
-        setname = tnt.write_hdf5_record(meta, data, tnt.all_name, do_not_use="DONOTUSE" in meta_file_name)
-        meta, data, do_not_use = tnt.read_hdf5_record(setname, tnt.all_name)
-        index = tnt.read_hdf5_index(tnt.all_name)
+    files = tnt.reload_filelist()
 
-    # for j in range(1000):
-    #     setname = tnt.write_hdf5_record(meta, data, tnt.all_name)
-    #     meta, data = tnt.read_hdf5_record(setname, tnt.all_name)
+    with h5py.File(tnt.all_name, 'a') as hdf5_f:
+        for i, meta_file_path in enumerate(files):
+            setname = os.path.split(meta_file_path)[1].replace('_metadata_', '').replace('.json', '')
+            do_not_use="DONOTUSE" in meta_file_path
+            if do_not_use:
+                print(i, setname, "DONOTUSE")
+            else:
+                print(i, setname)
+            try:
+                meta, data = tnt.parse_metadata(meta_file_path)
+                tnt.write_hdf5_record(setname, meta, data, hdf5_f, do_not_use=do_not_use)
+                # meta, data, do_not_use = tnt.read_hdf5_record(setname, hdf5_f)
+                # index = tnt.read_hdf5_index(hdf5_f)
+            except Exception as ex:
+                print (ex)
+
+        # for j in range(1000):
+        #     tnt.write_hdf5_record(setname, meta, data, hdf5_f)
+        #     meta, data = tnt.read_hdf5_record(setname, hdf5_f)
 
 
-    X, Y = tnt.training_split(tnt.all_name)
+    # X, Y = tnt.training_split(tnt.all_name)
 
-    model = tnt.get_model()
-    model.summary()
+    # model = tnt.get_model()
+    # model.summary()
 
-    tnt.train(model, X, Y, X, Y)
+    # tnt.train(model, X, Y, X, Y)
 
     pass
 
