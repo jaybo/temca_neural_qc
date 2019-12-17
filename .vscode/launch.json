@@ -6,15 +6,28 @@
     "configurations": [
 
         {
-            "name": "temca_neural_qc",
+            "name": "add_data",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}/temca_neural_qc/",
-            "program": "${workspaceFolder}/temca_neural_qc/temca_neural_qc.py",
+            "program": "${workspaceFolder}/temca_neural_qc/train.py",
             "console": "integratedTerminal",
             "args": [
-                "C:/Users/jaybo/Google Drive/data/V1DD_409828_L1",
-                "0", "999999"]
+                "add_data",
+                "-d", "W:/V1DD_409828_L1",
+            //    "-r", "False"
+            ]
+        },
+        {
+            "name": "normalize",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/temca_neural_qc/",
+            "program": "${workspaceFolder}/temca_neural_qc/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "normalize",
+            ]
         },
         {
             "name": "train",
@@ -24,8 +37,8 @@
             "program": "${workspaceFolder}/temca_neural_qc/train.py",
             "console": "integratedTerminal",
             "args": [
-                "C:/Users/jaybo/Google Drive/data/jay7",
-                "0", "999999"]
+                "train",
+            ]
         }
     ]
 }

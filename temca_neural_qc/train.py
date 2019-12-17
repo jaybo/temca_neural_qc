@@ -27,6 +27,7 @@ from datetime import datetime  # for filename conventions
 import glob
 import json
 import argparse
+import pickle
 # from PIL import Image
 # from matplotlib import pyplot as plt
 # # import altair as alt
@@ -37,7 +38,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report 
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 
 # only thing we need to install is imgaug
 #!pip install -q -U imgaug
@@ -51,6 +52,10 @@ class TemcaNeuralTrainer:
         self.data = []
         self.file_list_name = './file_list.json'
         self.all_name = './all.hd5'
+        self.scaler_file = './scaler.bin'
+        self.scalers = {}
+
+    ##------------------------------ HDF5 ---------------------------------------##
 
     def write_hdf5_record(self, setname, metadata, data, hdf5_f, do_not_use=False):
         ''' each aperture becomes two datasets, data and metadata. 
@@ -111,6 +116,7 @@ class TemcaNeuralTrainer:
             # already exists, recreate it
             print (ex)
 
+    ##--------------------------- Metadata Parser ------------------------------##
 
     def parse_metadata(self, meta_file):
         ''' Read in the metadata file into numpy arrays.
@@ -175,6 +181,7 @@ class TemcaNeuralTrainer:
         #print (all_planes.shape)
         return (metadata, all_planes)
 
+    ##------------------------------ filelist ---------------------------------------##
 
     def create_filelist(self, rootdir, start, end):
         """ Create list of files"""
@@ -217,6 +224,7 @@ class TemcaNeuralTrainer:
         all_files = sorted(all_files)
         return all_files
 
+    ##----------------------- Training split ----------------------------##
 
     def get_success_vs_failures(self, all_files):
         ''' segment the files based on DONOTUSE '''
@@ -247,22 +255,24 @@ class TemcaNeuralTrainer:
         return X, Y
 
 
-    def plot_history(self, histories, keys=['binary_crossentropy', 'accuracy']):
-        plt.figure(figsize=(12, 8))
+    # def plot_history(self, histories, keys=['binary_crossentropy', 'accuracy']):
+    #     plt.figure(figsize=(12, 8))
 
-        for name, history in histories:
-            #print(history.history.keys())
-            for key in keys:
-                val = plt.plot(history.epoch, history.history['val_'+key],
-                                '--', label=name.title()+' Val')
-                plt.plot(history.epoch, history.history[key], color=val[0].get_color(),
-                        label=name.title()+' Train')
+    #     for name, history in histories:
+    #         #print(history.history.keys())
+    #         for key in keys:
+    #             val = plt.plot(history.epoch, history.history['val_'+key],
+    #                             '--', label=name.title()+' Val')
+    #             plt.plot(history.epoch, history.history[key], color=val[0].get_color(),
+    #                     label=name.title()+' Train')
 
-        plt.xlabel('Epochs')
-        plt.ylabel(key.replace('_', ' ').title())
-        plt.legend()
+    #     plt.xlabel('Epochs')
+    #     plt.ylabel(key.replace('_', ' ').title())
+    #     plt.legend()
 
-        plt.xlim([0, max(history.epoch)])
+    #     plt.xlim([0, max(history.epoch)])
+
+
 
     # """## Scatterplot of sizes and frequency of occurance"""
 
@@ -299,6 +309,8 @@ class TemcaNeuralTrainer:
 
     #model_statistics(X_test, y_test)
     #model_statistics(X_train, y_train)
+
+    ##------------------------------ Model ---------------------------------------##
 
     def get_model(self):
         loss = 0.0001
@@ -381,9 +393,25 @@ class TemcaNeuralTrainer:
         return model
 
 
-    def train(self, model, X_train, y_train, X_test, y_test):
-        
+    # class MY_Generator(keras.model.Sequence):
+    #     def __init__(self, image_filenames, labels, batch_size):
+    #         self.image_filenames, self.labels = image_filenames, labels
+    #         self.batch_size = batch_size
 
+    #     def __len__(self):
+    #         return np.ceil(len(self.image_filenames) / float(self.batch_size))
+
+    #     def __getitem__(self, idx):
+    #         batch_x = self.image_filenames[idx * self.batch_size:(idx + 1) * self.batch_size]
+    #         batch_y = self.labels[idx * self.batch_size:(idx + 1) * self.batch_size]
+
+    #         return np.array([
+    #             resize(imread(file_name), (200, 200))
+    #             for file_name in batch_x]), np.array(batch_y)
+
+    ##------------------------------ Train ---------------------------------------##
+
+    def train(self, model, X_train, y_train, X_test, y_test):
 
         logdir = os.path.join('logs', datetime.now().strftime("%Y%m%d-%H%M%S"))
         print(logdir)
@@ -459,51 +487,101 @@ class TemcaNeuralTrainer:
 def main():
     ''' main entry point '''
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='TEMCA Neural QC')
 
-    parser.add_argument("directory", nargs=1, help='root directory', default="C:/Users/jaybo/Google Drive/data/jay7/000000/0/")
-    parser.add_argument("start", nargs='?', help="optional starting aperture", default="000000")
-    parser.add_argument("end", nargs='?', help="optional ending aperture", default="999999")
-    
+    subparsers = parser.add_subparsers(dest="subparser")
+
+    # add more data to the dataset
+    add_data = subparsers.add_parser(
+        'add_data', help='add to datset')
+    add_data.add_argument("-d", "--directory", type=str, help='root directory', default="C:/Users/jaybo/Google Drive/data/jay7/000000/0/")
+    add_data.add_argument("-s", "--start", type=str, help="optional starting aperture", default="000000")
+    add_data.add_argument("-e", "--end", type=str, help="optional ending aperture", default="999999")
+    add_data.add_argument("-r", "--reload_filelist", type=bool, help="reload instead of recursive directory search", default=False)
+
+    # normalize
+    normalize = subparsers.add_parser(
+        'normalize', help='calculate normalization')
+
+    # train
+    train = subparsers.add_parser(
+        'train', help='train the network')
+
+    # test
+    test = subparsers.add_parser(
+        'test', help='test')
+
     args = parser.parse_args()
 
     tnt = TemcaNeuralTrainer()
 
-    for directory in args.directory:
-        files = tnt.create_filelist(directory, args.start, args.end)
+    ##------------------------------ add_data ---------------------------------------##
+    if args.subparser == 'add_data':
 
-    index = {}
-    files = tnt.reload_filelist()
+        index = {}
+        if args.reload_filelist:
+            files = tnt.reload_filelist()
+        else:
+            files = tnt.create_filelist(args.directory, args.start, args.end)
 
-    with h5py.File(tnt.all_name, 'a') as hdf5_f:
-        for i, meta_file_path in enumerate(files):
-            setname = os.path.split(meta_file_path)[1].replace('_metadata_', '').replace('.json', '')
-            do_not_use="DONOTUSE" in meta_file_path
-            if do_not_use:
-                print(i, setname, "DONOTUSE")
-            else:
-                print(i, setname)
-            try:
-                meta, data = tnt.parse_metadata(meta_file_path)
-                tnt.write_hdf5_record(setname, meta, data, hdf5_f, do_not_use=do_not_use)
-                # meta, data, do_not_use = tnt.read_hdf5_record(setname, hdf5_f)
-                # index = tnt.read_hdf5_index(hdf5_f)
-            except Exception as ex:
-                print (ex)
+        with h5py.File(tnt.all_name, 'a') as hdf5_f:
+            for i, meta_file_path in enumerate(files):
+                setname = os.path.split(meta_file_path)[1].replace('_metadata_', '').replace('.json', '')
+                do_not_use="DONOTUSE" in meta_file_path
+                if do_not_use:
+                    print(i, setname, "DONOTUSE")
+                else:
+                    print(i, setname)
+                try:
+                    meta, data = tnt.parse_metadata(meta_file_path)
+                    tnt.write_hdf5_record(setname, meta, data, hdf5_f, do_not_use=do_not_use)
+                    # meta, data, do_not_use = tnt.read_hdf5_record(setname, hdf5_f)
+                    # index = tnt.read_hdf5_index(hdf5_f)
+                except Exception as ex:
+                    print (ex)
 
         # for j in range(1000):
         #     tnt.write_hdf5_record(setname, meta, data, hdf5_f)
         #     meta, data = tnt.read_hdf5_record(setname, hdf5_f)
 
+    ##------------------------------ normalize ---------------------------------------##
+    if args.subparser == 'normalize':
 
-    # X, Y = tnt.training_split(tnt.all_name)
+        index = {}
+        tnt.scalers = {}
 
-    # model = tnt.get_model()
-    # model.summary()
+        with h5py.File(tnt.all_name, 'r') as hdf5_f:
+            index = tnt.read_hdf5_index(hdf5_f)
+            for setname in index.keys():
+                print(setname)
+                meta, data, do_not_use = tnt.read_hdf5_record(setname, hdf5_f)
 
-    # tnt.train(model, X, Y, X, Y)
+                if not tnt.scalers: 
+                    # create a scaler for each channel
+                    for i in range(data.shape[-1]):
+                        tnt.scalers[str(i)] = StandardScaler()
 
-    pass
+                for i in range(data.shape[-1]):
+                    tnt.scalers[str(i)].partial_fit(data[:,:,i].transpose())
+
+        for i in range(data.shape[-1]):
+            pickle.dump(tnt.scalers[str(i)], open(tnt.scaler_file + str(i), 'wb'))
+
+
+        # scaler = pickle.load(open(tnt.scaler_file, 'rb'))
+        # test_scaled_set = scaler.transform(test_set)
+
+
+    ##------------------------------ normalize ---------------------------------------##
+    if args.subparser == 'train':
+        # X, Y = tnt.training_split(tnt.all_name)
+
+        # model = tnt.get_model()
+        # model.summary()
+
+        # tnt.train(model, X, Y, X, Y)
+
+        pass
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
