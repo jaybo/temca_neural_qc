@@ -136,7 +136,8 @@ class TemcaNeuralTrainer:
             col, row = tile['img_meta']['raster_pos']
             max_rows = max(max_rows, row)
             max_cols = max(max_cols, col)
-
+        metadata["rows_cols"] = (max_rows, max_cols)
+        
         # allocate identicaly sized data arrays
         mean = np.zeros((max_rows+1, max_cols+1), dtype=np.float32)
         mask = np.zeros((max_rows+1, max_cols+1), dtype=np.float32)
