@@ -112,13 +112,36 @@ class TemcaNeuralTrainer:
 
         try:
             for k in hdf5_f['index'].attrs.keys():
-                v = hdf5_f['index'].attrs[k]
+                v = hdf5_f['index'].attrs.get(k)
                 #print (k, v)
                 index[k] = v
             return index
         except KeyError as ex:
             # already exists, recreate it
             print (ex)
+
+    def check_hd5_consistency(self, hdf5_f):
+        ''' verify that all index entries are present and not null'''
+        print ('consistency check')
+        index = self.read_hdf5_index(hdf5_f)
+        keys = hdf5_f.keys()
+        len_index = len(index)
+        len_keys = len(keys)
+        
+        # (data + meta) * apertures + index
+        print (f'len_index: {len_index}, len_keys: {len_keys}, keys and index legnth match?: {2 * len_index + 1}')
+        
+        # check for non null and count positives and negatives
+        none_count = pos = neg = 0
+        for k in keys:
+            v = index.get(k)
+            if v is None:
+                none_count += 1
+            elif v:
+                pos += 1
+            else:
+                neg += 1
+        print (f'pos: {pos}, neg: {neg}, None: {none_count}')
 
     ##--------------------------- Metadata Parser ------------------------------##
 
@@ -185,6 +208,7 @@ class TemcaNeuralTrainer:
         all_planes = np.dstack((mask, mean, focus, std_dev, im_dist_to_ideal, im_match_quality))
         #print (all_planes.shape)
         return (metadata, all_planes)
+
 
     ##------------------------------ filelist ---------------------------------------##
 
@@ -581,7 +605,7 @@ def main():
         # test_scaled_set = scaler.transform(test_set)
 
 
-    ##------------------------------ normalize ---------------------------------------##
+    ##------------------------------ train ---------------------------------------##
     if args.subparser == 'train':
         # X, Y = tnt.training_split(tnt.all_name)
 
@@ -589,6 +613,15 @@ def main():
         # model.summary()
 
         # tnt.train(model, X, Y, X, Y)
+
+        pass
+
+    ##------------------------------ test ---------------------------------------##
+    if args.subparser == 'test':
+        # X, Y = tnt.training_split(tnt.all_name)
+
+        with h5py.File(tnt.all_name, 'r') as hdf5_f:
+            tnt.check_hd5_consistency(hdf5_f)
 
         pass
 
