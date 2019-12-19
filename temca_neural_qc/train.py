@@ -67,25 +67,29 @@ class TemcaNeuralTrainer:
 
         # add data and metadata
         try:
-            hdf5_f.create_dataset(setname, data.shape, dtype=np.float32, data=data)
+            hdf5_f.create_dataset(setname, data.shape, data=data)
             hdf5_f.create_dataset(setname + '_meta', data=json.dumps(metadata))
         except OSError as ex:
             # already exists, recreate it
             print(ex, setname)
             del hdf5_f[setname]
             del hdf5_f[setname + '_meta']
-            hdf5_f.create_dataset(setname, data.shape, dtype=np.float32, data=data)
+            hdf5_f.create_dataset(setname, data.shape, data=data)
             hdf5_f.create_dataset(setname + '_meta', data=json.dumps(metadata))
 
         # add to the index
         try:
             index = hdf5_f['index']
         except KeyError as ex:
-            index = hdf5_f.create_dataset('index', dtype=np.bool)
+            index = hdf5_f.create_dataset('index', data="Maybe it needs data to set attributes?")
         try:
-            index.attrs[setname] = do_not_use
+            myattr = index.attrs.get(setname)
+            if myattr is not None:
+                index.attrs.modify(setname, np.bool(do_not_use))
+            else:
+                index.attrs[setname] = np.bool(do_not_use)
         except Exception as ex:
-            print(ex)
+            print('modifying or creating attr: ', ex)
 
 
     def read_hdf5_record(self, setname, hdf5_f):
@@ -93,7 +97,7 @@ class TemcaNeuralTrainer:
         try:
             data = hdf5_f[setname][:,:,:]
             meta = json.loads(hdf5_f[setname + '_meta'][()])
-            do_not_use = hdf5_f['index'].attrs[setname]
+            do_not_use = hdf5_f['index'].attrs.get(setname)
             return meta, data, do_not_use
         except KeyError as ex:
             # already exists, recreate it
@@ -137,7 +141,7 @@ class TemcaNeuralTrainer:
             max_rows = max(max_rows, row)
             max_cols = max(max_cols, col)
         metadata["rows_cols"] = (max_rows, max_cols)
-        
+
         # allocate identicaly sized data arrays
         mean = np.zeros((max_rows+1, max_cols+1), dtype=np.float32)
         mask = np.zeros((max_rows+1, max_cols+1), dtype=np.float32)
@@ -195,18 +199,21 @@ class TemcaNeuralTrainer:
         print(len(files))
 
         # remove reference montages
-        files = [f for f in files if not "_reference" in f]
+        files = [f for f in files if not "_reference" in f or not "back_up" in f or not "test" in f]
+
 
         # only inclue apertures in the range start to end
         filtered = []
         for file in files:
-            left, right = os.path.split(file) # right is metadata file
-            left, right = os.path.split(left) # right is ROI index
-            left, right = os.path.split(left) # right is barcode
-            barcode = int(right)
-            if barcode >= start and barcode <= end:
-                filtered.append(file)
-            pass
+            try:
+                left, right = os.path.split(file) # right is metadata file
+                left, right = os.path.split(left) # right is ROI index
+                left, right = os.path.split(left) # right is barcode
+                barcode = int(right)
+                if barcode >= start and barcode <= end:
+                    filtered.append(file)
+            except Exception as ex:
+                print (ex, file)
 
         print(len(filtered))
 
@@ -527,6 +534,7 @@ def main():
 
         with h5py.File(tnt.all_name, 'a') as hdf5_f:
             for i, meta_file_path in enumerate(files):
+                hdf5_f.flush()
                 setname = os.path.split(meta_file_path)[1].replace('_metadata_', '').replace('.json', '')
                 do_not_use="DONOTUSE" in meta_file_path
                 if do_not_use:
