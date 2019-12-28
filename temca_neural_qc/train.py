@@ -54,6 +54,8 @@ class TemcaNeuralTrainer:
         self.all_name = './all.hd5'
         self.scaler_file = './scaler.bin'
         self.scalers = {}
+        self.max_shape = (48, 64, 12)  # padded size
+        self.ignore = ['index', 'test', 'meta']
 
     ##------------------------------ HDF5 ---------------------------------------##
 
@@ -70,7 +72,7 @@ class TemcaNeuralTrainer:
             hdf5_f.create_dataset(setname, data.shape, data=data)
             hdf5_f.create_dataset(setname + '_meta', data=json.dumps(metadata))
         except OSError as ex:
-            # already exists, recreate it
+            # bad key
             print(ex, setname)
             del hdf5_f[setname]
             del hdf5_f[setname + '_meta']
@@ -100,9 +102,17 @@ class TemcaNeuralTrainer:
             do_not_use = hdf5_f['index'].attrs.get(setname)
             return meta, data, do_not_use
         except KeyError as ex:
-            # already exists, recreate it
+            # bad key
             print (ex, setname)
 
+    def read_hdf5_data(self, setname, hdf5_f):
+        ''' Given a dataset name, return (meta, data, do_not_use)'''
+        try:
+            data = hdf5_f[setname][:, :, :]
+            return  data
+        except KeyError as ex:
+            # bad key
+            print (ex, setname)
 
     def read_hdf5_index(self, hdf5_f):
         ''' Returns a {} where the key is each dataset name, 
@@ -113,11 +123,13 @@ class TemcaNeuralTrainer:
         try:
             for k in hdf5_f['index'].attrs.keys():
                 v = hdf5_f['index'].attrs.get(k)
+                if 'index' in k or 'meta' in k:
+                    continue
                 #print (k, v)
                 index[k] = v
             return index
         except KeyError as ex:
-            # already exists, recreate it
+            # bad key
             print (ex)
 
     def check_hd5_consistency(self, hdf5_f):
@@ -142,6 +154,22 @@ class TemcaNeuralTrainer:
             else:
                 neg += 1
         print (f'pos: {pos}, neg: {neg}, None: {none_count}')
+
+    def XY_from_hdf5(self, hdf5_f):
+        ''' get X, Y arrays from hdf5 '''
+        keys = hdf5_f.keys()
+        X = []
+        Y = []
+        for k in keys:
+            if any(x in k for x in self.ignore):
+                continue
+            data = self.read_hdf5_data(k, hdf5_f)
+            # zero padding
+            padded = np.zeros(self.max_shape)
+            padded[0:data.shape[0], 0:data.shape[1], :] = data
+            X.append(padded)
+            Y.append(hdf5_f['index'].attrs.get(k))
+        return np.asarray(X, dtype=np.float32), np.asarray(Y, dtype=np.bool)
 
     ##--------------------------- Metadata Parser ------------------------------##
 
@@ -607,21 +635,22 @@ def main():
 
     ##------------------------------ train ---------------------------------------##
     if args.subparser == 'train':
-        # X, Y = tnt.training_split(tnt.all_name)
+        with h5py.File(tnt.all_name, 'r') as hdf5_f:
+            # tnt.check_hd5_consistency(hdf5_f)
+            X, Y = tnt.XY_from_hdf5(hdf5_f)
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
+        model = tnt.get_model()
+        model.summary()
 
-        # model = tnt.get_model()
-        # model.summary()
-
-        # tnt.train(model, X, Y, X, Y)
+        tnt.train(model, X_train, Y_train, X_test, Y_test)
 
         pass
 
     ##------------------------------ test ---------------------------------------##
     if args.subparser == 'test':
-        # X, Y = tnt.training_split(tnt.all_name)
-
         with h5py.File(tnt.all_name, 'r') as hdf5_f:
-            tnt.check_hd5_consistency(hdf5_f)
+            # tnt.check_hd5_consistency(hdf5_f)
+            X, Y = tnt.XY_from_hdf5(hdf5_f)
 
         pass
 

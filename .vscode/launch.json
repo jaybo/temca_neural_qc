@@ -39,6 +39,17 @@
             "args": [
                 "train",
             ]
+        },
+            {
+            "name": "test",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/temca_neural_qc/",
+            "program": "${workspaceFolder}/temca_neural_qc/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "test",
+            ]
         }
     ]
 }
