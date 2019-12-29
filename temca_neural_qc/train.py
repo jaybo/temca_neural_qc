@@ -39,6 +39,7 @@ from sklearn.metrics import classification_report
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.utils import class_weight
 
 # only thing we need to install is imgaug
 #!pip install -q -U imgaug
@@ -349,100 +350,79 @@ class TemcaNeuralTrainer:
 
 
 
-    # def model_statistics(self, x, y):
-    #     # predict probabilities for test set
-    #     global yhat_probs
-    #     global yhat_classes
-    #     yhat_probs = model.predict(x, verbose=0)
-    #     # predict crisp classes for test set
-    #     yhat_classes = model.predict_classes(x, verbose=0)
-    #     # reduce to 1d array
-    #     yhat_probs = yhat_probs[:, 0]
-    #     yhat_classes = yhat_classes[:, 0]
+    def model_statistics(self, model, x, y):
+        # predict probabilities
+        yhat_probs = model.predict(x, verbose=0)
+        # predict crisp classes for test set
+        yhat_classes = model.predict_classes(x, verbose=0)
+        # reduce to 1d array
+        yhat_probs = yhat_probs[:, 0]
+        yhat_classes = yhat_classes[:, 0]
 
-    #     print('Confusion Matrix :')
-    #     cm = confusion_matrix(y, yhat_classes)
-    #     print(cm)
-    #     print('Accuracy Score :', accuracy_score(y, yhat_classes))
-    #     print('Report : ')
-    #     print(classification_report(y, yhat_classes))
+        print('Confusion Matrix :')
+        cm = confusion_matrix(y, yhat_classes)
+        print(cm)
+        print('Accuracy Score :', accuracy_score(y, yhat_classes))
+        print('Report : ')
+        print(classification_report(y, yhat_classes))
+        return yhat_probs, yhat_classes
 
-    #model_statistics(X_test, y_test)
-    #model_statistics(X_train, y_train)
+        #model_statistics(X_test, y_test)
+        #model_statistics(X_train, y_train)
 
     ##------------------------------ Model ---------------------------------------##
 
     def get_model(self):
         loss = 0.0001
-        drop = 0.4
-        spatial_drop = 0.1
+        drop = 0.1
+        spatial_drop = 0.3
 
         model = keras.models.Sequential([
-            keras.layers.Input(shape=(None, None, 12)),
+            keras.layers.Input(shape=self.max_shape),
             
-            #keras.layers.Dropout(drop),
-
-            #keras.layers.BatchNormalization(),
-
-            keras.layers.Convolution2D(filters=32, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            keras.layers.Convolution2D(filters=32, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-
+            keras.layers.BatchNormalization(),
+            
             keras.layers.Convolution2D(filters=64, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
             keras.layers.Convolution2D(filters=64, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.BatchNormalization(),
+            keras.layers.MaxPooling2D(),
+            #keras.layers.SpatialDropout2D(spatial_drop),
+            keras.layers.Dropout(drop),
 
-            keras.layers.Convolution2D(filters=128, kernel_size = (1,1)),
+            keras.layers.Convolution2D(filters=128, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=128, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.BatchNormalization(),
+            keras.layers.MaxPooling2D(),
+            keras.layers.Dropout(drop),
 
-            keras.layers.GlobalMaxPooling2D(),
+            keras.layers.Convolution2D(filters=256, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=256, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=256, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.BatchNormalization(),
+            keras.layers.MaxPooling2D(),
+            keras.layers.Dropout(drop),
+
+            keras.layers.Convolution2D(filters=512, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=512, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=512, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.MaxPooling2D(),
+            keras.layers.Dropout(drop),
             
+
+            keras.layers.Convolution2D(filters=512, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=512, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.Convolution2D(filters=512, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
+            keras.layers.MaxPooling2D(),
+            keras.layers.Dropout(drop),
+
+            keras.layers.Flatten(),
+            # keras.layers.Dropout(drop),
+
+            keras.layers.Dense(4096, activation='relu'),
+            keras.layers.Dense(4096, activation='relu'),
+
             keras.layers.Dense(1, activation='sigmoid')
 
-            #keras.layers.BatchNormalization(),
-            # keras.layers.MaxPooling2D(),
-            # #keras.layers.SpatialDropout2D(spatial_drop),
-            # keras.layers.Dropout(drop),
-            
-            # keras.layers.Convolution2D(filters=64, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # keras.layers.Convolution2D(filters=64, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.BatchNormalization(),
-            # keras.layers.MaxPooling2D(),
-            # #keras.layers.SpatialDropout2D(spatial_drop),
-            # keras.layers.Dropout(drop),
-
-            # #keras.layers.Convolution2D(filters=128, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.Convolution2D(filters=128, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.Convolution2D(filters=128, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.BatchNormalization(),
-            # #keras.layers.MaxPooling2D(),
-            # #keras.layers.Dropout(drop),
-
-            # #keras.layers.Convolution2D(filters=256, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.Convolution2D(filters=256, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.Convolution2D(filters=256, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.BatchNormalization(),
-            # keras.layers.MaxPooling2D(),
-            # keras.layers.Dropout(drop),
-
-            # keras.layers.Convolution2D(filters=64, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.Convolution2D(filters=64, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # #keras.layers.Convolution2D(filters=128, kernel_size = (3,3), strides = (1,1), padding = 'same', activation='relu', kernel_regularizer=keras.regularizers.l2(loss)),
-            # keras.layers.MaxPooling2D(),
-            # keras.layers.Dropout(drop),
-            
-            # #keras.layers.GlobalAveragePooling2D(),
-
-
-            # #keras.layers.Flatten(),
-            # #keras.layers.Dropout(drop),
-
-
-            # #keras.layers.Dense(4096, activation='relu'),
-            # #keras.layers.Dense(4096, activation='relu'),
-
-            # # keras.layers.Dense(1, activation='sigmoid')
-
-            # #keras.layers.Dense(4096, activation='relu'),
-            # #keras.layers.Dense(4096, activation='relu'),
-            # #keras.layers.Dense(1, activation='sigmoid'),
 
         ])
 
@@ -451,7 +431,6 @@ class TemcaNeuralTrainer:
         #opt = keras.optimizers.SGD(lr=0.001, decay=.01, momentum=0.9, nesterov=True)
         model.compile(opt, loss='binary_crossentropy', metrics=['accuracy', 'binary_crossentropy'])
         return model
-
 
     # class MY_Generator(keras.model.Sequence):
     #     def __init__(self, image_filenames, labels, batch_size):
@@ -475,7 +454,13 @@ class TemcaNeuralTrainer:
 
         logdir = os.path.join('logs', datetime.now().strftime("%Y%m%d-%H%M%S"))
         print(logdir)
-        baseline_history = model.fit(X_train, y_train, epochs=100, batch_size=1, validation_data=(X_test, y_test),
+        
+        class_weights = class_weight.compute_class_weight('balanced',
+                                                 np.unique(y_train),
+                                                 y_train)
+        class_weights = dict(enumerate(class_weights))
+
+        baseline_history = model.fit(X_train, y_train, epochs=100, batch_size=32, validation_data=(X_test, y_test), class_weight=class_weights,
                 callbacks=[
                     keras.callbacks.ModelCheckpoint('./checkpoint.h5',
                                 monitor='loss', verbose=0, save_best_only=True, save_weights_only=False),
@@ -486,9 +471,9 @@ class TemcaNeuralTrainer:
                     keras.callbacks.TensorBoard(logdir, histogram_freq=1)
         ])
 
-        # model.evaluate(X_test, y_test, verbose=2)
-        # plot_history([('baseline', baseline_history)])
-        # model_statistics(X_test, y_test)
+        model.evaluate(X_test, y_test, verbose=2)
+        #plot_history([('baseline', baseline_history)])
+        yhat_prob, yhat_classes = self.model_statistics(model, X_test, y_test)
 
         # no_match = np.logical_xor (yhat_classes.astype('bool'), y_test.astype('bool'))
         # no_match_idx = np.nonzero(no_match)
@@ -638,7 +623,7 @@ def main():
         with h5py.File(tnt.all_name, 'r') as hdf5_f:
             # tnt.check_hd5_consistency(hdf5_f)
             X, Y = tnt.XY_from_hdf5(hdf5_f)
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.25, random_state=42, stratify=Y)
         model = tnt.get_model()
         model.summary()
 
