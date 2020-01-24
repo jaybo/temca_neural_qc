@@ -7,43 +7,34 @@ Jay Borseth 2019.12.15
 # Commented out IPython magic to ensure Python compatibility.
 # %tensorflow_version 2.x
 
-import sys
+import argparse
+import glob
+import io
+import json
 import os
+import pickle
+import sys
+from datetime import datetime
+from time import time
+
+import cv2
+import h5py 
+import numpy as np
+import tensorflow as tf
+from sklearn.metrics import (accuracy_score, classification_report,
+                             confusion_matrix)
+from sklearn.model_selection import (StratifiedKFold, cross_val_score,
+                                     train_test_split)
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils import class_weight
+from tensorflow import keras
+from tensorflow.keras import Model, layers
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 # force to run on CPU
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-import cv2
-import h5py  # for saving the model
-import io
-import tensorflow as tf
-from sklearn.model_selection import train_test_split
-from tensorflow import keras
-from tensorflow.keras import layers, Model
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-import numpy as np
-from time import time
-from datetime import datetime  # for filename conventions
-import glob
-import json
-import argparse
-import pickle
-# from PIL import Image
-# from matplotlib import pyplot as plt
-# # import altair as alt
-# import pandas as pd
-
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import accuracy_score 
-from sklearn.metrics import classification_report 
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
-from sklearn.utils import class_weight
-
-# only thing we need to install is imgaug
-#!pip install -q -U imgaug
-#import imgaug
 print(tf.__version__)
 
 
@@ -55,8 +46,14 @@ class TemcaNeuralTrainer:
         self.all_name = './all.hd5'
         self.scaler_file = './scaler.bin'
         self.scalers = {}
-        self.max_shape = (48, 64, 12)  # padded size
-        self.ignore = ['index', 'test', 'meta']
+
+        # which planes to use from the full dataset?
+        # planes = 12:             1      1     1       1          6                  2
+        # all_planes = np.dstack((mask, mean, focus, std_dev, im_dist_to_ideal, im_match_quality))
+        self.include_planes = [0, 1, 2, 3, 10]
+
+        self.max_shape = (48, 64, len(self.include_planes))  # padded size
+        self.ignore = ['reference', 'index', 'test', 'meta', 'back']
 
     ##------------------------------ HDF5 ---------------------------------------##
 
@@ -162,12 +159,13 @@ class TemcaNeuralTrainer:
         X = []
         Y = []
         for k in keys:
-            if any(x in k for x in self.ignore):
+            # print (k)
+            if any(x in k.lower() for x in self.ignore):
                 continue
             data = self.read_hdf5_data(k, hdf5_f)
             # zero padding
             padded = np.zeros(self.max_shape)
-            padded[0:data.shape[0], 0:data.shape[1], :] = data
+            padded[0:data.shape[0], 0:data.shape[1], :] = data[:, :, self.include_planes]
             X.append(padded)
             Y.append(hdf5_f['index'].attrs.get(k))
         return np.asarray(X, dtype=np.float32), np.asarray(Y, dtype=np.bool)
@@ -375,7 +373,7 @@ class TemcaNeuralTrainer:
     def get_model(self):
         loss = 0.0001
         drop = 0.1
-        spatial_drop = 0.3
+        spatial_drop = 0.1
 
         model = keras.models.Sequential([
             keras.layers.Input(shape=self.max_shape),
@@ -423,7 +421,6 @@ class TemcaNeuralTrainer:
 
             keras.layers.Dense(1, activation='sigmoid')
 
-
         ])
 
         #opt = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
@@ -432,21 +429,6 @@ class TemcaNeuralTrainer:
         model.compile(opt, loss='binary_crossentropy', metrics=['accuracy', 'binary_crossentropy'])
         return model
 
-    # class MY_Generator(keras.model.Sequence):
-    #     def __init__(self, image_filenames, labels, batch_size):
-    #         self.image_filenames, self.labels = image_filenames, labels
-    #         self.batch_size = batch_size
-
-    #     def __len__(self):
-    #         return np.ceil(len(self.image_filenames) / float(self.batch_size))
-
-    #     def __getitem__(self, idx):
-    #         batch_x = self.image_filenames[idx * self.batch_size:(idx + 1) * self.batch_size]
-    #         batch_y = self.labels[idx * self.batch_size:(idx + 1) * self.batch_size]
-
-    #         return np.array([
-    #             resize(imread(file_name), (200, 200))
-    #             for file_name in batch_x]), np.array(batch_y)
 
     ##------------------------------ Train ---------------------------------------##
 
@@ -460,7 +442,7 @@ class TemcaNeuralTrainer:
                                                  y_train)
         class_weights = dict(enumerate(class_weights))
 
-        baseline_history = model.fit(X_train, y_train, epochs=100, batch_size=32, validation_data=(X_test, y_test), class_weight=class_weights,
+        baseline_history = model.fit(X_train, y_train, epochs=200, batch_size=32, validation_data=(X_test, y_test), class_weight=class_weights,
                 callbacks=[
                     keras.callbacks.ModelCheckpoint('./checkpoint.h5',
                                 monitor='loss', verbose=0, save_best_only=True, save_weights_only=False),
